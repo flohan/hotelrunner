@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: retell-booking-service
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: ./bin/start.sh
+    plan: free
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: HOTELRUNNER_TOKEN
+        sync: false
+      - key: HR_ID
+        sync: false
+      - key: HOTELRUNNER_BASE_URL
+        value: https://api2.hotelrunner.com/api/v1
+      - key: PROPERTY_BASE_CURRENCY
+        value: TRY
+      - key: TOOL_SECRET
+        sync: false
+      - key: FX_DEFAULT_TRY_EUR
+        value: "0.02857"
+      - key: LOG_LEVEL
+        value: INFO
