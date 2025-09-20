@@ -12,7 +12,11 @@ class Settings:
     HOTELRUNNER_BASE_URL: str = os.getenv("HOTELRUNNER_BASE_URL", "https://api2.hotelrunner.com/api/v1")
     HOTELRUNNER_TOKEN: str | None = os.getenv("HOTELRUNNER_TOKEN")
     # Aliase: HR_ID oder HOTELRUNNER_HR_ID
-    HR_ID: str | None = os.getenv("HR_ID") or os.getenv("HOTELRUNNER_HR_ID")
+    HR_ID: str | None = (
+        os.getenv("HR_ID")
+        or os.getenv("HOTELRUNNER_HR_ID")
+        or os.getenv("HOTELRUNNER_ID")
+    )
 
     # App
     PROPERTY_BASE_CURRENCY: str = os.getenv("PROPERTY_BASE_CURRENCY", "TRY")

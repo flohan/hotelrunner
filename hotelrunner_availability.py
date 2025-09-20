@@ -11,7 +11,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from settings import get_settings
 
 _s = get_settings()
-HOTELRUNNER_BASE_URL = _s.HOTELRUNNER_BASE_URL
+HOTELRUNNER_BASE_URL = _s.HOTELRUNNER_BASE_URL.rstrip("/")
 HOTELRUNNER_TOKEN = _s.require("HOTELRUNNER_TOKEN")
 HR_ID = _s.require("HR_ID")
 
@@ -34,8 +34,14 @@ class AvailabilityRequest(BaseModel):
         return v.upper() if v else v
 
 def _headers() -> Dict[str, str]:
+    token = HOTELRUNNER_TOKEN.strip()
+    if token.lower().startswith("bearer "):
+        auth_value = token
+    else:
+        auth_value = f"Bearer {token}"
+
     return {
-        "Authorization": f"Bearer {HOTELRUNNER_TOKEN}",
+        "Authorization": auth_value,
         "Content-Type": "application/json",
         "Accept": "application/json",
         "User-Agent": "retell-booking-service/1.0"
@@ -44,7 +50,10 @@ def _headers() -> Dict[str, str]:
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.2, min=0.5, max=2.0))
 def get_availability(payload: AvailabilityRequest) -> Dict[str, Any]:
     url = f"{HOTELRUNNER_BASE_URL}/availability/search"
-    params = {"hr_id": HR_ID}
+    params = {
+        "hr_id": HR_ID,
+        "token": HOTELRUNNER_TOKEN,
+    }
     body = {
         "check_in": payload.check_in,
         "check_out": payload.check_out,
@@ -54,7 +63,7 @@ def get_availability(payload: AvailabilityRequest) -> Dict[str, Any]:
     if payload.currency:
         body["currency"] = payload.currency
 
-    resp = requests.post(url, params=params, headers=_headers(), json=body, timeout=5)
+    resp = requests.post(url, params=params, headers=_headers(), json=body, timeout=10)
     if resp.status_code >= 400:
         raise RuntimeError(f"HotelRunner error {resp.status_code}: {resp.text[:200]}")
 
