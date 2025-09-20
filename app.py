@@ -45,7 +45,10 @@ def public_check_availability():
             "total": result.get("total"),
             "currency": result.get("currency"),
             "nights": result.get("nights"),
-            "raw": result.get("raw")
+            "price_currency": result.get("price_currency"),
+            "availability": result.get("availability"),
+            "prices": result.get("prices"),
+            "raw": result.get("raw"),
         }), 200
     except Exception as err:
         return jsonify({
