@@ -1,8 +1,10 @@
-"""HotelRunner Availability Client + Validation (Render-ready)"""
+"""HotelRunner Availability Client + Validation (Render-ready)."""
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from typing import Any, Dict, Optional
+from urllib.parse import urljoin
 
 import requests
 from pydantic import BaseModel, Field, field_validator
@@ -10,10 +12,11 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from settings import get_settings
 
-_s = get_settings()
-HOTELRUNNER_BASE_URL = _s.HOTELRUNNER_BASE_URL.rstrip("/")
-HOTELRUNNER_TOKEN = _s.require("HOTELRUNNER_TOKEN")
-HR_ID = _s.require("HR_ID")
+LOGGER = logging.getLogger(__name__)
+_settings = get_settings()
+HOTELRUNNER_TOKEN = _settings.require("HOTELRUNNER_TOKEN")
+HR_ID = _settings.require("HR_ID")
+API_PATH = "/api/v1/availability/search.json"
 
 class AvailabilityRequest(BaseModel):
     check_in: str
@@ -33,42 +36,43 @@ class AvailabilityRequest(BaseModel):
     def upper_iso4217(cls, v: Optional[str]) -> Optional[str]:
         return v.upper() if v else v
 
+def _hr_url(path: str) -> str:
+    base = _settings.HOTELRUNNER_BASE_URL.rstrip("/") + "/"
+    return urljoin(base, path.lstrip("/"))
+
+
 def _headers() -> Dict[str, str]:
     token = HOTELRUNNER_TOKEN.strip()
     if token.lower().startswith("bearer "):
-        auth_value = token
-    else:
-        auth_value = f"Bearer {token}"
+        token = token[len("bearer ") :]
 
     return {
-        "Authorization": auth_value,
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "retell-booking-service/1.0"
+        "User-Agent": "retell-booking-service/1.0",
     }
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.2, min=0.5, max=2.0))
 def get_availability(payload: AvailabilityRequest) -> Dict[str, Any]:
-    url = f"{HOTELRUNNER_BASE_URL}/availability/search"
-    params = {
-        "hr_id": HR_ID,
-        "token": HOTELRUNNER_TOKEN,
-    }
+    url = _hr_url(API_PATH)
     body = {
+        "hr_id": HR_ID,
         "check_in": payload.check_in,
         "check_out": payload.check_out,
         "adults": payload.adults,
-        "children": payload.children,
+        "children": payload.children or 0,
+        "currency": payload.currency or _settings.PROPERTY_BASE_CURRENCY,
     }
-    if payload.currency:
-        body["currency"] = payload.currency
 
-    resp = requests.post(url, params=params, headers=_headers(), json=body, timeout=10)
+    resp = requests.post(url, headers=_headers(), json=body, timeout=15)
     if resp.status_code >= 400:
-        raise RuntimeError(f"HotelRunner error {resp.status_code}: {resp.text[:200]}")
+        snippet = (resp.text or "")[:180]
+        LOGGER.warning("HR upstream: status=%s url=%s snippet=%s", resp.status_code, url, snippet)
+        raise RuntimeError(f"HotelRunner error {resp.status_code}: {snippet}")
 
     data = resp.json()
     total = data.get("total")
-    currency = (data.get("currency") or body.get("currency") or _s.PROPERTY_BASE_CURRENCY).upper()
+    currency = (data.get("currency") or body.get("currency") or _settings.PROPERTY_BASE_CURRENCY).upper()
     nights = (dt.date.fromisoformat(payload.check_out) - dt.date.fromisoformat(payload.check_in)).days
     return {"total": total, "currency": currency, "nights": nights, "raw": data}

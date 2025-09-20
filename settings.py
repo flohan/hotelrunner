@@ -9,7 +9,7 @@ class Settings:
     PORT: int = int(os.getenv("PORT", "10000"))
 
     # HotelRunner
-    HOTELRUNNER_BASE_URL: str = os.getenv("HOTELRUNNER_BASE_URL", "https://api2.hotelrunner.com/api/v1")
+    HOTELRUNNER_BASE_URL: str = os.getenv("HOTELRUNNER_BASE_URL", "https://api2.hotelrunner.com")
     HOTELRUNNER_TOKEN: str | None = os.getenv("HOTELRUNNER_TOKEN")
     # Aliase: HR_ID oder HOTELRUNNER_HR_ID
     HR_ID: str | None = (
