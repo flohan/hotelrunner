@@ -1,18 +1,22 @@
 from __future__ import annotations
-import os, json, datetime as dt
-from flask import Flask, request, jsonify
-from dotenv import load_dotenv
-from pydantic import ValidationError
+
+import json
+import datetime as dt
+from datetime import timezone
 from decimal import Decimal
 
-from hotelrunner_availability import AvailabilityRequest, get_availability
-from currency_resolver import decide_currency
-from compose_offer import compose_offer, OfferInput
+from flask import Flask, jsonify, request
+from pydantic import ValidationError
 
-load_dotenv()  # Render ignoriert .env; Env kommt aus Dashboard, aber lokal hilfreich.
-PORT = int(os.getenv("PORT", "10000"))
-TOOL_SECRET = os.getenv("TOOL_SECRET", "CHANGE_ME")
-PROPERTY_BASE_CURRENCY = os.getenv("PROPERTY_BASE_CURRENCY", "TRY")
+from compose_offer import OfferInput, compose_offer
+from currency_resolver import decide_currency
+from hotelrunner_availability import AvailabilityRequest, get_availability
+from settings import get_settings
+
+settings = get_settings()
+PORT = int(settings.PORT)
+TOOL_SECRET = settings.require("TOOL_SECRET")
+PROPERTY_BASE_CURRENCY = settings.PROPERTY_BASE_CURRENCY
 
 app = Flask(__name__)
 
@@ -43,8 +47,11 @@ def public_check_availability():
             "nights": result.get("nights"),
             "raw": result.get("raw")
         }), 200
-    except Exception:
-        return jsonify({"error": "upstream_error", "message": "Availability service unavailable"}), 502
+    except Exception as err:
+        return jsonify({
+            "error": "upstream_error",
+            "message": "Availability service unavailable",
+        }), 502
 
 @app.post("/retell/tool/compose_offer")
 def tool_compose_offer():
@@ -65,17 +72,13 @@ def tool_compose_offer():
 
         base_currency = availability_result.get("currency", "TRY").upper()
         # Demo-FX (ersetzen durch echten Provider/Cache)
-        if base_currency == display_currency.upper():
-            fx_rate = Decimal("1.0")
-        else:
-            fx_env_key = f"FX_DEFAULT_{base_currency}_{display_currency}".upper().replace("-", "_")
-            fx_rate = Decimal(os.getenv(fx_env_key, os.getenv("FX_DEFAULT_TRY_EUR", "0.02857")))
+        fx_rate = settings.get_fx_default(base_currency, display_currency)
 
         offer = compose_offer(OfferInput(
             availability_result=availability_result,
             display_currency=display_currency,
             fx_rate=fx_rate,
-            fx_timestamp=dt.datetime.utcnow().isoformat() + "Z",
+            fx_timestamp=dt.datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             include_breakfast=True
         ))
         return jsonify(offer), 200

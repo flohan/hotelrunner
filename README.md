@@ -17,11 +17,12 @@ Produktionsnahes Starterpaket für **Render.com** (kein lokaler Betrieb nötig).
 5. **Health Check Path**: `/healthz`
 6. **Environment Variables** (Dashboard → *Environment*):
    - `HOTELRUNNER_TOKEN` = *Bearer Token*
-   - `HR_ID` = *HotelRunner ID*
+   - `HR_ID` (Alias: `HOTELRUNNER_HR_ID`) = *HotelRunner ID*
    - `HOTELRUNNER_BASE_URL` = `https://api2.hotelrunner.com/api/v1`
    - `PROPERTY_BASE_CURRENCY` = `TRY` (oder Basis deiner Property)
    - `TOOL_SECRET` = *geheimes Token für /retell/tool/*
    - `FX_DEFAULT_TRY_EUR` = `0.02857` (nur als Demo!)
+   - Optionale Paare `FX_DEFAULT_<BASE>_<DISPLAY>` (z. B. `FX_DEFAULT_TL_USD`)
    - `LOG_LEVEL` = `INFO`
 
 > Render setzt automatisch `PORT`. Nicht überschreiben.
@@ -47,4 +48,3 @@ Siehe `openapi.yaml` (Basis-Spezifikation für deine Endpunkte).
 
 ## CI (optional)
 Füge später GitHub Actions hinzu (Lint/Tests/Smoke).
-

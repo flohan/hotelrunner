@@ -1,4 +1,9 @@
 import json, os
+
+os.environ.setdefault("HOTELRUNNER_TOKEN", "dummy-token")
+os.environ.setdefault("HR_ID", "dummy-hr")
+os.environ.setdefault("TOOL_SECRET", "CHANGE_ME")
+
 from app import app
 
 def test_healthz():

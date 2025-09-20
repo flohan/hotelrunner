@@ -1,16 +1,19 @@
-"""
-HotelRunner Availability Client + Validation (Render-ready)
-"""
+"""HotelRunner Availability Client + Validation (Render-ready)"""
 from __future__ import annotations
-import os, datetime as dt
-from typing import Optional, Dict, Any
+
+import datetime as dt
+from typing import Any, Dict, Optional
+
 import requests
 from pydantic import BaseModel, Field, field_validator
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-HOTELRUNNER_BASE_URL = os.getenv("HOTELRUNNER_BASE_URL", "https://api2.hotelrunner.com/api/v1")
-HOTELRUNNER_TOKEN = os.getenv("HOTELRUNNER_TOKEN")
-HR_ID = os.getenv("HR_ID")
+from settings import get_settings
+
+_s = get_settings()
+HOTELRUNNER_BASE_URL = _s.HOTELRUNNER_BASE_URL
+HOTELRUNNER_TOKEN = _s.require("HOTELRUNNER_TOKEN")
+HR_ID = _s.require("HR_ID")
 
 class AvailabilityRequest(BaseModel):
     check_in: str
@@ -31,8 +34,6 @@ class AvailabilityRequest(BaseModel):
         return v.upper() if v else v
 
 def _headers() -> Dict[str, str]:
-    if not HOTELRUNNER_TOKEN:
-        raise RuntimeError("Missing HOTELRUNNER_TOKEN")
     return {
         "Authorization": f"Bearer {HOTELRUNNER_TOKEN}",
         "Content-Type": "application/json",
@@ -42,9 +43,6 @@ def _headers() -> Dict[str, str]:
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.2, min=0.5, max=2.0))
 def get_availability(payload: AvailabilityRequest) -> Dict[str, Any]:
-    if not HR_ID:
-        raise RuntimeError("Missing HR_ID")
-
     url = f"{HOTELRUNNER_BASE_URL}/availability/search"
     params = {"hr_id": HR_ID}
     body = {
@@ -62,6 +60,6 @@ def get_availability(payload: AvailabilityRequest) -> Dict[str, Any]:
 
     data = resp.json()
     total = data.get("total")
-    currency = data.get("currency", body.get("currency", "TRY"))
+    currency = (data.get("currency") or body.get("currency") or _s.PROPERTY_BASE_CURRENCY).upper()
     nights = (dt.date.fromisoformat(payload.check_out) - dt.date.fromisoformat(payload.check_in)).days
     return {"total": total, "currency": currency, "nights": nights, "raw": data}
