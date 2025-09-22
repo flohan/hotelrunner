@@ -3,7 +3,7 @@ services:
     name: retell-booking-service
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: ./bin/start.sh
+    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT app:app
     plan: free
     healthCheckPath: /healthz
     autoDeploy: true
@@ -13,7 +13,11 @@ services:
       - key: HR_ID
         sync: false
       - key: HOTELRUNNER_BASE_URL
-        value: https://api2.hotelrunner.com/api/v1
+        value: https://api2.hotelrunner.com
+      - key: HOTELRUNNER_APPS_BASE_URL
+        value: https://app.hotelrunner.com/api/v2/apps
+      - key: HOTELRUNNER_CURRENCY_URL
+        value: https://app.hotelrunner.com/api/currency/currencies.json
       - key: PROPERTY_BASE_CURRENCY
         value: TRY
       - key: TOOL_SECRET
