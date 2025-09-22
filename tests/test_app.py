@@ -34,3 +34,21 @@ def test_compose_offer_demo():
     assert response.status_code == 200
     data = response.get_json()
     assert data["display_currency"] == "EUR"
+
+
+def test_debug_env_requires_secret():
+    client = app.test_client()
+    response = client.get("/retell/tool/debug_env")
+    assert response.status_code == 401
+
+
+def test_debug_env_returns_present_flags():
+    client = app.test_client()
+    response = client.get(
+        "/retell/tool/debug_env",
+        headers={"X-Tool-Secret": "CHANGE_ME"},
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["ok"] is True
+    assert "environment" in data

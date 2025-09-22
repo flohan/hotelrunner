@@ -13,6 +13,7 @@ from currency_resolver import decide_currency
 from hotelrunner_availability import AvailabilityRequest, get_availability
 from settings import configure_logging, get_settings
 from utils.request_id import RequestIdFilter, generate_request_id
+from utils.env_inspector import inspect_environment, inspect_settings
 
 configure_logging()
 settings = get_settings()
@@ -129,6 +130,21 @@ def whoami():
                 "hotelrunner_base": settings.hotelrunner_base_url,
             },
             "request_id": g.get("request_id"),
+        }
+    )
+
+
+@app.get("/retell/tool/debug_env")
+def debug_env():
+    if request.headers.get("X-Tool-Secret") != TOOL_SECRET:
+        return jsonify({"error": "unauthorized"}), 401
+
+    return jsonify(
+        {
+            "ok": True,
+            "request_id": g.get("request_id"),
+            "environment": inspect_environment(),
+            "settings": inspect_settings(),
         }
     )
 
