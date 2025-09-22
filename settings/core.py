@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 from dataclasses import dataclass
 from decimal import Decimal
@@ -26,14 +25,27 @@ class Settings:
         return value
 
     def get_fx_default(self, base_currency: str, display_currency: str) -> Decimal:
-        if base_currency.upper() == display_currency.upper():
+        base = base_currency.upper()
+        target = display_currency.upper()
+
+        if base == target:
             return Decimal("1.0")
-        env_key = f"FX_DEFAULT_{base_currency.upper()}_{display_currency.upper()}".replace("-", "_")
-        value = os.getenv(env_key)
-        if value:
-            return Decimal(value)
-        if base_currency.upper() == "TRY" and display_currency.upper() == "EUR":
+
+        env_key = f"FX_DEFAULT_{base}_{target}".replace("-", "_")
+        override = os.getenv(env_key)
+        if override:
+            return Decimal(override)
+
+        try:
+            from .fx import get_rate  # local import to avoid cycle
+
+            return get_rate(base, target)
+        except Exception:
+            pass
+
+        if base == "TRY" and target == "EUR":
             return Decimal(os.getenv("FX_DEFAULT_TRY_EUR", "0.02857"))
+
         return Decimal("1.0")
 
 
@@ -57,12 +69,4 @@ def get_settings() -> Settings:
         property_base_currency=os.getenv("PROPERTY_BASE_CURRENCY", "TRY"),
         tool_secret=os.getenv("TOOL_SECRET"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
-    )
-
-
-def configure_logging() -> None:
-    settings = get_settings()
-    logging.basicConfig(
-        level=settings.log_level.upper(),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
