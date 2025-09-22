@@ -5,13 +5,14 @@ import json
 from datetime import timezone
 from decimal import Decimal
 
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 from pydantic import ValidationError
 
 from compose_offer import OfferInput, compose_offer
 from currency_resolver import decide_currency
 from hotelrunner_availability import AvailabilityRequest, get_availability
 from settings import configure_logging, get_settings
+from utils.request_id import RequestIdFilter, generate_request_id
 
 configure_logging()
 settings = get_settings()
@@ -20,6 +21,18 @@ TOOL_SECRET = settings.require("TOOL_SECRET", settings.tool_secret)
 PROPERTY_BASE_CURRENCY = settings.property_base_currency
 
 app = Flask(__name__)
+RequestIdFilter.install()
+
+
+@app.before_request
+def attach_request_id() -> None:
+    g.request_id = request.headers.get("X-Request-ID") or generate_request_id()
+
+
+@app.after_request
+def propagate_request_id(response):
+    response.headers.setdefault("X-Request-ID", g.get("request_id"))
+    return response
 
 
 @app.get("/healthz")
@@ -57,7 +70,13 @@ def public_check_availability():
         )
     except Exception as exc:
         return (
-            jsonify({"error": "upstream_error", "message": "Availability service unavailable"}),
+            jsonify(
+                {
+                    "error": "upstream_error",
+                    "message": "Availability service unavailable",
+                    "request_id": g.get("request_id"),
+                }
+            ),
             502,
         )
 
@@ -90,7 +109,28 @@ def tool_compose_offer():
         )
         return jsonify(offer)
     except Exception as exc:
-        return jsonify({"error": "compose_failed", "message": str(exc)}), 400
+        return (
+            jsonify({"error": "compose_failed", "message": str(exc), "request_id": g.get("request_id")}),
+            400,
+        )
+
+
+@app.get("/retell/tool/whoami")
+def whoami():
+    authed = request.headers.get("X-Tool-Secret") == TOOL_SECRET
+    return jsonify(
+        {
+            "ok": True,
+            "service": "Retell Booking (Python)",
+            "authenticated": authed,
+            "timestamp": dt.datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "config": {
+                "property_base_currency": PROPERTY_BASE_CURRENCY,
+                "hotelrunner_base": settings.hotelrunner_base_url,
+            },
+            "request_id": g.get("request_id"),
+        }
+    )
 
 
 if __name__ == "__main__":
