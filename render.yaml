@@ -1,28 +1,24 @@
 services:
   - type: web
-    name: retell-booking-service
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT app:app
-    plan: free
-    healthCheckPath: /healthz
-    autoDeploy: true
+    name: retell-agent-optimized
+    env: node
+    plan: starter
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    runtime: "node"
+    region: frankfurt
     envVars:
-      - key: HOTELRUNNER_TOKEN
-        sync: false
-      - key: HR_ID
-        sync: false
-      - key: HOTELRUNNER_BASE_URL
-        value: https://api2.hotelrunner.com
-      - key: HOTELRUNNER_APPS_BASE_URL
-        value: https://app.hotelrunner.com/api/v2/apps
-      - key: HOTELRUNNER_CURRENCY_URL
-        value: https://app.hotelrunner.com/api/currency/currencies.json
-      - key: PROPERTY_BASE_CURRENCY
-        value: TRY
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
       - key: TOOL_SECRET
         sync: false
-      - key: FX_DEFAULT_TRY_EUR
-        value: "0.02857"
-      - key: LOG_LEVEL
-        value: INFO
+      - key: HOTELRUNNER_BASE
+        value: https://api2.hotelrunner.com
+      - key: HOTELRUNNER_AVAILABILITY_PATH
+        value: /api/v1/availability/search
+      - key: HOTELRUNNER_TOKEN
+        sync: false
+      - key: HOTELRUNNER_ID
+        sync: false
