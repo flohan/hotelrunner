@@ -37,7 +37,7 @@ def test_build_availability_matrix_counts_bookings():
         {"room_type": "Deluxe", "check_in": "2025-10-01", "check_out": "2025-10-02"},
     ]
 
-    matrix, _ = _build_availability_matrix(payload, rooms, reservations)
+    matrix = _build_availability_matrix(payload, rooms, reservations)
 
     assert matrix["price_currency"] == "EUR"
     assert matrix["nights"] == 3
