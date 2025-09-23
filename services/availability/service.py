@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-from typing import Dict, Tuple
+from typing import Dict
 
 from clients.hotelrunner.currencies import fetch_currencies
 from clients.hotelrunner.reservations import fetch_reservations
@@ -19,43 +19,30 @@ def get_availability(payload: AvailabilityRequest) -> AvailabilityResponse:
         dt.date.fromisoformat(payload.check_in) - dt.timedelta(days=30),
         dt.date.fromisoformat(payload.check_out) + dt.timedelta(days=1),
     )
-    availability_matrix, matrix_error = _build_availability_matrix(payload, rooms, reservations)
+    availability = _build_availability_matrix(payload, rooms, reservations)
     raw = {
         "rooms": rooms,
         "reservations": reservations,
         "currencies": fetch_currencies(),
     }
 
-    if matrix_error:
-        raise RuntimeError("HotelRunner reservations unavailable")
-
-    summary_total, summary_currency = _calculate_summary_from_matrix(payload, availability_matrix)
-
     return AvailabilityResponse(
-        total=summary_total,
-        currency=summary_currency,
-        nights=availability_matrix["nights"],
-        price_currency=availability_matrix["price_currency"],
-        availability=availability_matrix["availability"],
-        prices=availability_matrix["prices"],
+        total=None,
+        currency=(payload.currency or PROPERTY_CURRENCY).upper(),
+        nights=availability["nights"],
+        price_currency=availability["price_currency"],
+        availability=availability["availability"],
+        prices=availability["prices"],
         raw=raw,
         summary_unavailable=True,
     )
-
-
-def _calculate_summary_from_matrix(
-    payload: AvailabilityRequest,
-    matrix: Dict[str, object],
-) -> Tuple[float | None, str]:
-    currency = (payload.currency or PROPERTY_CURRENCY).upper()
-    return None, currency
 
 
 def _build_availability_matrix(
     payload: AvailabilityRequest,
     rooms: list[dict],
     reservations: list[dict],
-) -> Tuple[Dict[str, object], bool]:
+) -> Dict[str, object]:
     totals, price_map, currency = _parse_room_metadata(rooms)
     start = dt.date.fromisoformat(payload.check_in)
     end = dt.date.fromisoformat(payload.check_out)
@@ -93,15 +80,12 @@ def _build_availability_matrix(
         current += dt.timedelta(days=1)
 
     nights = (end - start).days
-    return (
-        {
-            "price_currency": currency,
-            "availability": availability,
-            "prices": prices,
-            "nights": nights,
-        },
-        False,
-    )
+    return {
+        "price_currency": currency,
+        "availability": availability,
+        "prices": prices,
+        "nights": nights,
+    }
 
 
 def _parse_room_metadata(rooms: list[dict]) -> tuple[Dict[str, int], Dict[str, float], str]:
@@ -140,7 +124,17 @@ def _safe_float(value) -> float | None:
         return None
 
 
-def _days_between(start: str, end: str) -> int:
-    start_date = dt.date.fromisoformat(start)
-    end_date = dt.date.fromisoformat(end)
-    return (end_date - start_date).days
+def _fetch_rooms_safe() -> list[dict]:
+    try:
+        return fetch_rooms()
+    except Exception as exc:
+        LOGGER.warning("Rooms request failed: %s", exc)
+        raise RuntimeError("HotelRunner rooms unavailable") from exc
+
+
+def _fetch_reservations_safe(start: dt.date, end: dt.date) -> list[dict]:
+    try:
+        return fetch_reservations(start, end)
+    except Exception as exc:
+        LOGGER.warning("Reservations request failed: %s", exc)
+        raise RuntimeError("HotelRunner reservations unavailable") from exc
