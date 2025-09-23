@@ -1,39 +1,19 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `app.py` hosts the Flask entry point, registers routes, and wires logging and settings.
-- `services/availability/` contains the booking domain logic and pydantic models.
-- External API integrations live in `clients/hotelrunner/` with shared helpers in `common.py`.
-- Cross-cutting helpers (request IDs, env inspection) sit in `utils/`.
-- Tests mirror this shape under `tests/`, with payload utilities in `tests/utils/`.
-- `_archived_node/` holds legacy Retell resources; avoid changes unless coordinating a migration.
+Keep Flask wiring in `app.py`; add new routes via blueprints and configure dependencies through `settings.get_settings()`. Domain logic lives under `services/availability/`, with Pydantic models defining request/response contracts. External HotelRunner calls stay in `clients/hotelrunner/` and share helpers from `clients/hotelrunner/common.py`. Cross-cutting utilities (request IDs, env inspection) are in `utils/`. Tests mirror this layout under `tests/`, with payload fixtures in `tests/utils/`. Legacy Retell assets remain in `_archived_node/`; coordinate before touching them.
 
 ## Build, Test, and Development Commands
-- Create a venv and install deps: `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`.
-- Run the app locally: `python app.py`; production uses `gunicorn -w 2 -b 0.0.0.0:$PORT app:app` (see `Procfile`).
-- Quick smoke test: `curl http://localhost:5000/healthz`.
-- Execute the suite: `python3 -m pytest -q`.
-- Copy `.env.example` to `.env` and fill HotelRunner keys before anything that hits upstream APIs.
+Create an isolated environment and install deps with `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`. Run the Flask server locally via `python app.py`; production mirrors `gunicorn -w 2 -b 0.0.0.0:$PORT app:app`. Smoke test health by calling `curl http://localhost:5000/healthz`. Execute the test suite with `python3 -m pytest -q`, or focus on a module using `python3 -m pytest -k availability`.
 
 ## Coding Style & Naming Conventions
-- Follow PEP 8 with four-space indentation and snake_case modules/functions.
-- Prefer explicit type hints and pydantic models for request/response objects; extend `AvailabilityRequest` or `OfferInput` patterns when adding payloads.
-- Keep HTTP handlers thin; push calculations into `services/` and integration calls into `clients/`.
-- Reuse `settings.get_settings()` instead of new global constants; secrets stay in env vars.
+Follow PEP 8, four-space indentation, and snake_case modules/functions. Prefer explicit type hints and Pydantic models; extend `AvailabilityRequest` or `OfferInput` patterns when adding payload schemas. Keep HTTP handlers thin—delegate calculations to `services/` and outbound calls to `clients/`. Reuse shared helpers such as `settings.get_settings()` and avoid new global constants.
 
 ## Testing Guidelines
-- Add targeted pytest cases alongside the module under test (`services/availability` → `tests/test_availability_service.py`).
-- Mock HotelRunner responses with dict literals; never hit the live API in tests.
-- Include both happy path and guardrail scenarios (e.g., auth failures, malformed payloads) when editing endpoints.
-- Run `pytest -k <keyword>` for focused debugging and share the command/output in reviews.
+Use pytest for all automated checks. Co-locate tests with their targets (`services/availability/...` → `tests/test_availability_service.py`). Mock HotelRunner traffic with dict literals or fixtures; never call upstream APIs. Cover both success paths and guardrails (auth failures, malformed payloads). Share the exact `pytest` command and output in reviews for regressions.
 
 ## Commit & Pull Request Guidelines
-- Use descriptive, imperative commit subjects such as `availability: normalise EUR totals`; avoid release-number-only messages.
-- Keep commits scoped and squash noisy WIP before opening a PR.
-- PR descriptions should explain the user-facing impact, list touched endpoints/config, and attach the latest pytest command.
-- Link the tracking issue and include sample JSON or screenshots whenever response contracts change.
+Write imperative, descriptive commit subjects, e.g., `availability: normalise EUR totals`, and keep each commit scoped. Update PR descriptions with user impact, touched endpoints/config, and the last pytest command/output. Link tracking issues and include sample JSON payloads or screenshots when response contracts change. Squash noisy WIP before requesting review.
 
-## Configuration & Security Notes
-- Never commit `.env`; rely on Render or local env vars for `HOTELRUNNER_*`, `TOOL_SECRET`, and currency fallbacks.
-- Update `settings/core.py` and `README.md` when introducing new configuration flags.
-- Logging already injects request IDs; do not print secrets or raw payloads to stdout.
+## Security & Configuration Tips
+Never commit `.env`; rely on Render or local environment variables for `HOTELRUNNER_*`, `TOOL_SECRET`, and currency fallbacks. Update `settings/core.py` and the README whenever introducing new configuration switches. Logging already injects request IDs—avoid printing secrets or raw upstream payloads.

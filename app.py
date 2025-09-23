@@ -41,6 +41,11 @@ def healthz() -> tuple[str, int]:
     return "ok", 200
 
 
+@app.get("/")
+def index() -> tuple[str, int]:
+    return "Erendiz Hotel Service", 200
+
+
 @app.get("/__routes")
 def routes():
     return jsonify(sorted([str(rule) for rule in app.url_map.iter_rules()]))
