@@ -7,7 +7,6 @@ from typing import Dict, Tuple
 from clients.hotelrunner.currencies import fetch_currencies
 from clients.hotelrunner.reservations import fetch_reservations
 from clients.hotelrunner.rooms import fetch_rooms
-from clients.hotelrunner.summary import fetch_summary
 from clients.hotelrunner.common import PROPERTY_CURRENCY
 from services.availability.models import AvailabilityRequest, AvailabilityResponse
 
@@ -15,8 +14,6 @@ LOGGER = logging.getLogger(__name__)
 
 
 def get_availability(payload: AvailabilityRequest) -> AvailabilityResponse:
-    summary = _fetch_summary(payload)
-
     rooms = fetch_rooms()
     reservations = fetch_reservations(
         dt.date.fromisoformat(payload.check_in) - dt.timedelta(days=30),
@@ -24,49 +21,44 @@ def get_availability(payload: AvailabilityRequest) -> AvailabilityResponse:
     )
     availability_matrix = _build_availability_matrix(payload, rooms, reservations)
     raw = {
-        "summary": summary.get("raw_summary"),
         "rooms": rooms,
         "reservations": reservations,
         "currencies": fetch_currencies(),
     }
 
+    summary_total, summary_currency = _calculate_summary_from_matrix(payload, availability_matrix)
+
     return AvailabilityResponse(
-        total=summary.get("total"),
-        currency=summary.get("currency"),
+        total=summary_total,
+        currency=summary_currency,
         nights=availability_matrix["nights"],
         price_currency=availability_matrix["price_currency"],
         availability=availability_matrix["availability"],
         prices=availability_matrix["prices"],
         raw=raw,
+        summary_unavailable=True,
     )
 
 
-def _fetch_summary(payload: AvailabilityRequest) -> dict[str, object]:
-    body = {
-        "check_in": payload.check_in,
-        "check_out": payload.check_out,
-        "adults": payload.adults,
-        "children": payload.children or 0,
-        "currency": payload.currency or PROPERTY_CURRENCY,
-    }
-    nights = _days_between(payload.check_in, payload.check_out)
-    try:
-        data = fetch_summary(body)
-        currency = (data.get("currency") or body["currency"]).upper()
-        return {
-            "total": _safe_float(data.get("total")),
-            "currency": currency,
-            "nights": nights,
-            "raw_summary": data,
-        }
-    except Exception as exc:
-        LOGGER.warning("Summary request failed: %s", exc)
-        return {
-            "total": None,
-            "currency": (payload.currency or PROPERTY_CURRENCY).upper(),
-            "nights": nights,
-            "raw_summary": None,
-        }
+def _calculate_summary_from_matrix(
+    payload: AvailabilityRequest,
+    matrix: Dict[str, object],
+) -> Tuple[float | None, str]:
+    currency = (payload.currency or PROPERTY_CURRENCY).upper()
+    total = None
+    nights = matrix["nights"]
+
+    # Optional: accumulate minimal price per night if needed
+    prices = matrix.get("prices") or {}
+    nightly_totals = []
+    for _, daily_prices in prices.items():
+        if daily_prices:
+            nightly_totals.append(min(daily_prices.values()))
+
+    if nightly_totals and nights:
+        total = float(sum(nightly_totals))
+
+    return total, currency
 
 
 def _build_availability_matrix(

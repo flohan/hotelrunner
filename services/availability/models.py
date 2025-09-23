@@ -36,3 +36,4 @@ class AvailabilityResponse(BaseModel):
     availability: Dict[str, Dict[str, int]]
     prices: Dict[str, Dict[str, float]]
     raw: Dict[str, Any]
+    summary_unavailable: bool
