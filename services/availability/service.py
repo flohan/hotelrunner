@@ -14,17 +14,20 @@ LOGGER = logging.getLogger(__name__)
 
 
 def get_availability(payload: AvailabilityRequest) -> AvailabilityResponse:
-    rooms = fetch_rooms()
-    reservations = fetch_reservations(
+    rooms = _fetch_rooms_safe()
+    reservations = _fetch_reservations_safe(
         dt.date.fromisoformat(payload.check_in) - dt.timedelta(days=30),
         dt.date.fromisoformat(payload.check_out) + dt.timedelta(days=1),
     )
-    availability_matrix = _build_availability_matrix(payload, rooms, reservations)
+    availability_matrix, matrix_error = _build_availability_matrix(payload, rooms, reservations)
     raw = {
         "rooms": rooms,
         "reservations": reservations,
         "currencies": fetch_currencies(),
     }
+
+    if matrix_error:
+        raise RuntimeError("HotelRunner reservations unavailable")
 
     summary_total, summary_currency = _calculate_summary_from_matrix(payload, availability_matrix)
 
@@ -45,27 +48,14 @@ def _calculate_summary_from_matrix(
     matrix: Dict[str, object],
 ) -> Tuple[float | None, str]:
     currency = (payload.currency or PROPERTY_CURRENCY).upper()
-    total = None
-    nights = matrix["nights"]
-
-    # Optional: accumulate minimal price per night if needed
-    prices = matrix.get("prices") or {}
-    nightly_totals = []
-    for _, daily_prices in prices.items():
-        if daily_prices:
-            nightly_totals.append(min(daily_prices.values()))
-
-    if nightly_totals and nights:
-        total = float(sum(nightly_totals))
-
-    return total, currency
+    return None, currency
 
 
 def _build_availability_matrix(
     payload: AvailabilityRequest,
     rooms: list[dict],
     reservations: list[dict],
-) -> Dict[str, object]:
+) -> Tuple[Dict[str, object], bool]:
     totals, price_map, currency = _parse_room_metadata(rooms)
     start = dt.date.fromisoformat(payload.check_in)
     end = dt.date.fromisoformat(payload.check_out)
@@ -103,12 +93,15 @@ def _build_availability_matrix(
         current += dt.timedelta(days=1)
 
     nights = (end - start).days
-    return {
-        "price_currency": currency,
-        "availability": availability,
-        "prices": prices,
-        "nights": nights,
-    }
+    return (
+        {
+            "price_currency": currency,
+            "availability": availability,
+            "prices": prices,
+            "nights": nights,
+        },
+        False,
+    )
 
 
 def _parse_room_metadata(rooms: list[dict]) -> tuple[Dict[str, int], Dict[str, float], str]:
